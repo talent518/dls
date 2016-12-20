@@ -5,10 +5,10 @@ INC_DIR  = $(INST_DIR)/include
 BIN_DIR  = $(INST_DIR)/bin
 BUILD_DIR=$(PWD)/build
 
-CFLAGS   = -I$(INC_DIR)
-LFLAGS   = -lstdc++ -L$(INST_DIR)/lib -levent -Wl,-rpath,$(INST_DIR)/lib
+CFLAGS   = -I$(INC_DIR) `pkg-config --cflags glib-2.0` -g -O3
+LFLAGS   = -lstdc++ -L$(INST_DIR)/lib -levent -Wl,-rpath,$(INST_DIR)/lib `pkg-config --libs glib-2.0`
 
-all: $(BIN_DIR) $(BUILD_DIR) $(BIN_DIR)/dls
+all: $(BIN_DIR) $(BUILD_DIR) $(BIN_DIR)/dls2
 
 $(BIN_DIR):
 	@-mkdir -p $(BIN_DIR)
@@ -16,7 +16,7 @@ $(BIN_DIR):
 $(BUILD_DIR):
 	@-mkdir -p $(BUILD_DIR)
 
-$(BIN_DIR)/dls: $(BUILD_DIR)/dls.o $(BUILD_DIR)/conn.o
+$(BIN_DIR)/dls2: $(BUILD_DIR)/dls.o $(BUILD_DIR)/conn.o
 	@echo -e "\E[34mbuild dls"
 	@tput sgr0
 	@$(CC) $(LFLAGS) -o $@ $?
@@ -27,11 +27,18 @@ $(BUILD_DIR)/%.o: %.c
 	@$(CC) $(CFLAGS) -c $? -o $@
 
 test: kill clean all
-	@$(BIN_DIR)/dls
+	@echo -e "\E[34mbuild $@"
+	@tput sgr0
+	@$(BIN_DIR)/dls2
 
 kill:
-	@-killall -q -s SIGINT dls
+	@echo -e "\E[34mbuild $@"
+	@tput sgr0
+	@-killall -q -s SIGINT dls2
 
 clean:
+	@echo -e "\E[34mbuild $@"
+	@tput sgr0
 	@rm -rf $(BUILD_DIR)
-	@rm -rf $(BIN_DIR)/dls
+	@rm -f $(BIN_DIR)/dls2
+

@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <sys/errno.h>
+#include <curses.h>
 #include <sys/socket.h>
 #include <error.h>
 #include <netinet/in.h>
@@ -13,11 +14,14 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <glib.h>
 
 #include "conn.h"
 #include "dls.h"
 
 listen_thread_t listen_thread;
+
+GHashTable *ht_lock = NULL;
 
 static void listen_handler(const int fd, const short which, void *arg);
 inline bool update_accept_event(const int new_flags) {
@@ -67,8 +71,8 @@ static void read_handler(int sock, short event,	void* arg)
 
 	dprintf("%s: sockfd(%d), host(%s), port(%d)!\n", __func__, ptr->sockfd, ptr->host, ptr->port);
 
-	int data_len=0,ret;
-	char data[LES_BUF_SIZE+1];
+	register int ret;
+	char data[LES_BUF_SIZE+2];
 
 	ret=recv(ptr->sockfd, data, LES_BUF_SIZE, 0);
 	if(ret<=0){//关闭连接
@@ -83,8 +87,88 @@ static void read_handler(int sock, short event,	void* arg)
 		is_accept_conn(true);
 	}else{//接收数据成功
 		data[ret] = '\0';
-		dprintf("RECV(%d): %s\n", head_conn==ptr, data);
-		send_status(ptr->sockfd, head_conn==ptr);
+		data[ret+1] = '\0';
+		register char *s=data;
+		register size_t l;
+		register conn_node_t *p;
+		register lock_t *lock;
+		
+		GString str={NULL,0,0};
+
+		while(*s) {
+			l=strlen(s);
+			dprintf("key: %s\n", s);
+			switch(*s) {
+				case '*': {
+					p=ptr->head;
+					str.len=0;
+					while(p) {
+						lock=p->node->lock;
+						if(str.len>0) {
+							g_string_append_c(&str,',');
+						}
+						g_string_append_printf(&str, "%s(%d)", lock->key, lock->head==p->node?1:0);
+						p=p->next;
+					}
+					g_string_append_c(&str,'\n');
+					dprintf("%s: %s\n", __func__, str.str);
+					if(str.len>0) {
+						send(ptr->sockfd, str.str, str.len, MSG_WAITALL);
+					}
+					break;
+				}
+				case '+': {
+					p=g_hash_table_lookup(ptr->ht_lock_node,s+1);
+					if(p) {
+						lock=p->node->lock;
+					} else {
+						lock=g_hash_table_lookup(ht_lock,s+1);
+						if(!lock) {
+							lock=(lock_t*)malloc(sizeof(lock_t));
+							bzero(lock,sizeof(lock_t));
+							lock->key = strdup(s+1);
+							g_hash_table_insert(ht_lock,lock->key,lock);
+						}
+
+						p=(conn_node_t*)malloc(sizeof(conn_node_t));
+						p->conn=ptr;
+						p->node=(lock_node_t*)malloc(sizeof(lock_node_t));
+						p->node->lock=lock;
+						p->node->conn=ptr;
+
+						insert_lock_node(p->node);
+						insert_conn_node(p);
+
+						g_hash_table_insert(ptr->ht_lock_node, lock->key, p);
+
+					}
+
+					send_status(ptr->sockfd, lock->head==p->node);
+					break;
+				}
+				case '-': {
+					p=g_hash_table_lookup(ptr->ht_lock_node,s+1);
+					if(p) {
+						lock=p->node->lock;
+
+						if(p->node==lock->head && lock->head->next) {
+							send_status(lock->head->next->conn->sockfd, true);
+						}
+
+						g_hash_table_remove(ptr->ht_lock_node, lock->key);
+
+						remove_lock_node(p->node);
+						remove_conn_node(p);
+					}
+					send_status(ptr->sockfd, p != NULL);
+					break;
+				}
+			}
+			s+=l+1;
+		}
+		if(str.str) {
+			free(str.str);
+		}
 	}
 }
 
@@ -150,9 +234,14 @@ static void timeout_handler(const int fd, short event, void *arg)
 	conn_t *ptr = head_conn;
 
 	while(ptr) {
-		send_status(ptr->sockfd, ptr == head_conn);
+		send_status(ptr->sockfd, ptr->tail && ptr->tail->node == ptr->tail->node->lock->head);
 		ptr = ptr->next;
 	}
+}
+
+static void free_lock(lock_t *ptr) {
+	dprintf("%s(%s: %d).\n", __func__, ptr->key, ptr->node_num);
+	free(ptr);
 }
 
 int main(int argc, char *argv[]) {
@@ -221,6 +310,7 @@ int main(int argc, char *argv[]) {
 	event_assign(&listen_thread.signal_int, listen_thread.base, SIGINT, EV_SIGNAL|EV_PERSIST, signal_handler, &listen_thread.signal_int);
 	event_add(&listen_thread.signal_int, NULL);
 
+#ifdef DLS_TIMEOUT
 	struct timeval tv;
 	bzero(&tv,sizeof(tv));
 	tv.tv_sec = 5;
@@ -228,14 +318,25 @@ int main(int argc, char *argv[]) {
 	event_set(&listen_thread.timeout, -1, EV_TIMEOUT|EV_PERSIST, timeout_handler, NULL);
 	event_base_set(listen_thread.base, &listen_thread.timeout);
 	event_add(&listen_thread.timeout, &tv);
+#endif
 
-	printf("started.\n");
+	dprintf("started.\n");
+	ht_lock = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, (GDestroyNotify)free_lock);
 
 	event_base_loop(listen_thread.base, 0);
 
 	clean_conn();
 
-	printf("exited.\n");
+	g_hash_table_destroy(ht_lock);
+	
+#ifdef DLS_TIMEOUT
+	event_del(&listen_thread.timeout);
+#endif
+	event_del(&listen_thread.signal_int);
+	event_del(&listen_thread.event);
+	event_base_free(listen_thread.base);
+
+	dprintf("exited.\n");
 
 	return 0;
 }
