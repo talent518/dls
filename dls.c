@@ -75,7 +75,7 @@ static void read_handler(int sock, short event,	void* arg)
 	char data[LES_BUF_SIZE+2];
 
 	ret=recv(ptr->sockfd, data, LES_BUF_SIZE, 0);
-	if(ret<=0){//¹Ø±ÕÁ¬½Ó
+	if(ret<=0){//å…³é—­è¿æ¥
 		dprintf("%s(socket_close): sockfd(%d), host(%s), port(%d)!\n", __func__, ptr->sockfd, ptr->host, ptr->port);
 
 		if(head_conn == ptr && ptr->next) {
@@ -85,7 +85,7 @@ static void read_handler(int sock, short event,	void* arg)
 		remove_conn(ptr);
 
 		is_accept_conn(true);
-	}else{//½ÓÊÕÊı¾İ³É¹¦
+	}else{//æ¥æ”¶æ•°æ®æˆåŠŸ
 		data[ret] = '\0';
 		data[ret+1] = '\0';
 		register char *s=data;
@@ -258,22 +258,22 @@ int main(int argc, char *argv[]) {
 	setsockopt(listen_fd,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(int));
 
 	int send_timeout=5000,recv_timeout=5000;
-	setsockopt(listen_fd,SOL_SOCKET,SO_SNDTIMEO,&send_timeout,sizeof(int));//·¢ËÍ³¬Ê±
-	setsockopt(listen_fd,SOL_SOCKET,SO_RCVTIMEO,&recv_timeout,sizeof(int));//½ÓÊÕ³¬Ê±
+	setsockopt(listen_fd,SOL_SOCKET,SO_SNDTIMEO,&send_timeout,sizeof(int));//å‘é€è¶…æ—¶
+	setsockopt(listen_fd,SOL_SOCKET,SO_RCVTIMEO,&recv_timeout,sizeof(int));//æ¥æ”¶è¶…æ—¶
 
 	typedef struct {
 		u_short l_onoff;
 		u_short l_linger;
 	} linger;
 	linger m_sLinger;
-	m_sLinger.l_onoff=1;//(ÔÚclosesocket()µ÷ÓÃ,µ«ÊÇ»¹ÓĞÊı¾İÃ»·¢ËÍÍê±ÏµÄÊ±ºòÈİĞí¶ºÁô)
-	// Èç¹ûm_sLinger.l_onoff=0;Ôò¹¦ÄÜºÍ2.)×÷ÓÃÏàÍ¬;
-	m_sLinger.l_linger=5;//(ÈİĞí¶ºÁôµÄÊ±¼äÎª5Ãë)
+	m_sLinger.l_onoff=1;//(åœ¨closesocket()è°ƒç”¨,ä½†æ˜¯è¿˜æœ‰æ•°æ®æ²¡å‘é€å®Œæ¯•çš„æ—¶å€™å®¹è®¸é€—ç•™)
+	// å¦‚æœm_sLinger.l_onoff=0;åˆ™åŠŸèƒ½å’Œ2.)ä½œç”¨ç›¸åŒ;
+	m_sLinger.l_linger=5;//(å®¹è®¸é€—ç•™çš„æ—¶é—´ä¸º5ç§’)
 	setsockopt(listen_fd,SOL_SOCKET,SO_LINGER,(const char*)&m_sLinger,sizeof(linger));
 
 	int send_buffer=0,recv_buffer=0;
-	setsockopt(listen_fd,SOL_SOCKET,SO_SNDBUF,(char *)&send_buffer,sizeof(int));//·¢ËÍ»º³åÇø´óĞ¡
-	setsockopt(listen_fd,SOL_SOCKET,SO_RCVBUF,(char *)&recv_buffer,sizeof(int));//½ÓÊÕ»º³åÇø´óĞ¡
+	setsockopt(listen_fd,SOL_SOCKET,SO_SNDBUF,(char *)&send_buffer,sizeof(int));//å‘é€ç¼“å†²åŒºå¤§å°
+	setsockopt(listen_fd,SOL_SOCKET,SO_RCVBUF,(char *)&recv_buffer,sizeof(int));//æ¥æ”¶ç¼“å†²åŒºå¤§å°
 
 	bzero(&sin,sizeof(sin));
 	sin.sin_family=AF_INET;
