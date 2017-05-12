@@ -288,8 +288,7 @@ int main(int argc, char *argv[]) {
 
 	ret=listen(listen_fd, LES_BACKLOG);
 	if(ret<0){
-		system("echo -e \"\\E[31m\".[Failed]");
-		system("tput sgr0");
+		perror("listen error");
 		return 0;
 	}
 
@@ -301,6 +300,21 @@ int main(int argc, char *argv[]) {
 		perror("event_init( base )");
 		exit(1);
 	}
+
+	signal(SIGPIPE, SIG_IGN);
+	signal(SIGHUP, SIG_IGN);
+	signal(SIGINT, SIG_DFL);
+	signal(SIGTERM, SIG_DFL);
+
+#ifndef DLS_DEBUG
+	int pid = fork();
+	if(pid > 0) {
+		return;
+	} else if(pid < 0) {
+		perror("fork error");
+		exit(1);
+	}
+#endif
 
 	// listen event
 	event_assign(&listen_thread.event, listen_thread.base, listen_fd, EV_READ|EV_PERSIST, listen_handler, NULL);
