@@ -26,6 +26,7 @@ typedef struct
 	struct event event;
 	struct event signal_int;
 	struct event timeout;
+	struct event timeout_clean;
 
 	int listen_fd;
 

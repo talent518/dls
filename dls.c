@@ -233,10 +233,36 @@ static void timeout_handler(const int fd, short event, void *arg)
 {
 	conn_t *ptr = head_conn;
 
+	dprintf("%s\n", __func__);
 	while(ptr) {
 		send_status(ptr->sockfd, ptr->tail && ptr->tail->node == ptr->tail->node->lock->head);
 		ptr = ptr->next;
 	}
+}
+
+#ifdef DLS_TIMEOUT
+static gboolean clean_ht_lock(char *key, lock_t *val, void *arg)
+{
+#ifdef DLS_DEBUG
+	unsigned int n = 0;
+	lock_node_t *ptr = val->head;
+
+	while(ptr) {
+		n++;
+		ptr = ptr->next;
+	}
+
+	dprintf("%s(%s: %d).\n", __func__, key, n);
+#endif
+
+	return val->head == NULL;
+}
+#endif
+
+static void timeout_clean_handler(const int fd, short event, void *arg)
+{
+	dprintf("%s\n", __func__);
+	g_hash_table_foreach_steal(ht_lock, (GHRFunc)clean_ht_lock, NULL);
 }
 
 static void free_lock(lock_t *ptr) {
@@ -332,6 +358,12 @@ int main(int argc, char *argv[]) {
 	event_set(&listen_thread.timeout, -1, EV_TIMEOUT|EV_PERSIST, timeout_handler, NULL);
 	event_base_set(listen_thread.base, &listen_thread.timeout);
 	event_add(&listen_thread.timeout, &tv);
+
+	tv.tv_sec = 600;
+
+	event_set(&listen_thread.timeout_clean, -1, EV_TIMEOUT|EV_PERSIST, timeout_clean_handler, NULL);
+	event_base_set(listen_thread.base, &listen_thread.timeout_clean);
+	event_add(&listen_thread.timeout_clean, &tv);
 #endif
 
 	dprintf("started.\n");
@@ -345,6 +377,7 @@ int main(int argc, char *argv[]) {
 	
 #ifdef DLS_TIMEOUT
 	event_del(&listen_thread.timeout);
+	event_del(&listen_thread.timeout_clean);
 #endif
 	event_del(&listen_thread.signal_int);
 	event_del(&listen_thread.event);
