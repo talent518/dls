@@ -10,12 +10,12 @@ abstract class LockexHelper {
 		if ( self::$sockfd === null ) {
 			self::$sockfd = @socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
 			if ( self::$sockfd === false ) {
-				self::errorMessage('创建socket管道失败！' . socket_last_error());
+				self::errorMessage('创建socket管道失败！' . socket_strerror(socket_last_error()));
 			}
 			
 			$address = ( isset(Yii::app()->params['dlsHost']) ? Yii::app()->params['dlsHost'] : include ( Yii::getPathOfAlias('application.config.dbhost') . '.php' ) );
 			
-			@socket_connect(self::$sockfd, $address, 1112) or self::errorMessage('连接到锁服务器失败！错误为：' . socket_last_error(self::$sockfd));
+			@socket_connect(self::$sockfd, $address, 1112) or self::errorMessage('连接到锁服务器失败！错误为：' . socket_strerror(socket_last_error(self::$sockfd)));
 			
 			register_shutdown_function(__CLASS__ . '::close');
 		}
@@ -34,7 +34,7 @@ abstract class LockexHelper {
 			$ret = @socket_write(self::$sockfd, '+' . $key . chr(0));
 			
 			if ( $ret === false ) {
-				self::errorMessage('加锁失败！错误为：' . socket_last_error(self::$sockfd));
+				self::errorMessage('加锁失败！错误为：' . socket_strerror(socket_last_error(self::$sockfd)));
 			}
 			
 			do {
@@ -42,7 +42,7 @@ abstract class LockexHelper {
 			} while ( $ret !== false && $ret !== '' && ! $ret );
 			
 			if ( $ret === false ) {
-				self::errorMessage('加锁失败！错误为：' . socket_last_error(self::$sockfd));
+				self::errorMessage('加锁失败！错误为：' . socket_strerror(socket_last_error(self::$sockfd)));
 			}
 		}
 	}
@@ -54,13 +54,13 @@ abstract class LockexHelper {
 				$ret = @socket_write(self::$sockfd, '-' . $key . chr(0));
 				
 				if ( $ret === false ) {
-					self::errorMessage('解锁失败！错误为：' . socket_last_error(self::$sockfd));
+					self::errorMessage('解锁失败！错误为：' . socket_strerror(socket_last_error(self::$sockfd)));
 				}
 				
 				echo $ret = @socket_read(self::$sockfd, 1), PHP_EOL;
 				
 				if ( $ret === false ) {
-					self::errorMessage('解锁失败！错误为：' . socket_last_error(self::$sockfd));
+					self::errorMessage('解锁失败！错误为：' . socket_strerror(socket_last_error(self::$sockfd)));
 				}
 				
 				unset(self::$keys[$key]);
@@ -73,7 +73,7 @@ abstract class LockexHelper {
 			$ret = @socket_write(self::$sockfd, '*' . chr(0));
 			
 			if ( $ret === false ) {
-				self::errorMessage('查询锁失败！错误为：' . socket_last_error(self::$sockfd));
+				self::errorMessage('查询锁失败！错误为：' . socket_strerror(socket_last_error(self::$sockfd)));
 			}
 			
 			do {
